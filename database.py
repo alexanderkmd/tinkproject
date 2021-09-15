@@ -1,4 +1,7 @@
+# import beauty
+import csv
 import sqlite3
+# import time
 from datetime import datetime
 
 import logging
@@ -57,6 +60,41 @@ def init_database():
         sqlite_connection.commit()
     except Exception as e:
         db_logger.error("Error creating marketprice table", e)
+
+
+def prefill_database():
+    # start_time = time.time()
+    rates_sql = """SELECT COUNT(*) FROM rates;"""
+    try:
+        row = cursor.execute(rates_sql).fetchone()
+        count = int(row[0])
+        db_logger.info(f"Rates DB has {count} records")
+    except Exception as e:
+        db_logger.error(e)
+        return
+    if count == 0:
+        db_logger.info('Preheating CB rates from saved Database')
+        db_logger.info('Please wait')
+        # length = beauty.file_len('rates_by_date.csv')
+        i = 0
+        with open('rates_by_date.csv', 'r') as file:
+            reader = csv.reader(file)
+            # creating a dictionary from csv:
+            for row in reader:
+                if row[0] == "date":
+                    continue
+                date = datetime.strptime(row[0], '%Y-%m-%d').date()
+                usd = Decimal(row[1])
+                eur = Decimal(row[2])
+                put_exchange_rate(date, "USD", usd)
+                put_exchange_rate(date, "EUR", eur)
+                put_exchange_rate(date, "RUB", 1)
+                i += 1
+                # TODO: для ускорения попробовать отключить автокоммит
+                # if i % 20 == 0:
+                #    beauty.printProgressBar(i, length, "Loading")
+            # beauty.printProgressBar(i, length, "Loading")
+        # db_logger.info(f'done in {time.time() - start_time:.2f} seconds')
 
 
 def close_database_connection():
@@ -180,6 +218,7 @@ def open_database_connection(db_file_name="assets_db.db"):
         sqlite_connection.row_factory = sqlite3.Row
         cursor = sqlite_connection.cursor()
         init_database()
+        prefill_database()
     except sqlite3.Error as error:
         db_logger.error("Error connecting database", error)
 

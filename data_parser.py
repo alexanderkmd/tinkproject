@@ -16,6 +16,10 @@ from pycbrf.toolbox import ExchangeRates
 import database
 from currencies import currencies_data, supported_currencies
 
+# чтобы ограничить основными валютами запросы к ЦБ, учитывая прогрев базы
+# запрашивать будет, только если валюта не найдена в этом списке
+used_currencies = ["RUB", "EUR", "USD"]
+
 logger = logging.getLogger("Parser")
 logger.setLevel(logging.INFO)
 
@@ -26,6 +30,8 @@ delay_time = 0.1
 
 
 def get_exchange_rate_db(date=datetime.now(), currency="USD"):
+    if currency not in used_currencies:
+        used_currencies.append(currency)
     rate = database.get_exchange_rate(date, currency)
     if rate:
         return rate
@@ -40,7 +46,7 @@ def get_exchange_rate_db(date=datetime.now(), currency="USD"):
 
 def get_exchange_rates_for_date_db(date):
     rates = {}
-    for currency in supported_currencies:
+    for currency in used_currencies:
         rates[currency] = get_exchange_rate_db(date, currency)
     return rates
 
