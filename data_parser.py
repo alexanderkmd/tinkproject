@@ -32,9 +32,9 @@ delay_time = 0.1
 def get_exchange_rate_db(date=datetime.now(), currency="USD"):
     if currency not in used_currencies:
         used_currencies.append(currency)
-    rate = database.get_exchange_rate(date, currency)
+    rate, to_currency = database.get_exchange_rate(date, currency)
     if rate:
-        return rate
+        return rate, to_currency
     # Если курс не найден
     logger.info(f"Need to get rates for {date} from CB")
     rates = get_exchange_rate(date)
