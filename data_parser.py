@@ -99,7 +99,7 @@ def get_api_data(broker_account_id):
     market_rate_today = {}
     for currency, data in currencies_data.items():
         if 'figi' in data.keys():
-            market_rate_today[currency] = get_current_market_price(figi=data['figi'], depth=0)
+            market_rate_today[currency], to_curr = get_current_market_price(figi=data['figi'], depth=0)
         else:
             market_rate_today[currency] = 1
     currencies = client.get_portfolio_currencies(broker_account_id=broker_account_id)
@@ -109,9 +109,9 @@ def get_api_data(broker_account_id):
 
 
 def get_current_market_price(figi, depth=0, max_age=10*60):
-    price = database.get_market_price_by_figi(figi, max_age)
+    price, currency = database.get_market_price_by_figi(figi, max_age)
     if price:
-        return price
+        return price, currency
     try:
         client = tinvest.SyncClient(account_data['my_token'])
         book = client.get_market_orderbook(figi=figi, depth=depth)
@@ -120,8 +120,10 @@ def get_current_market_price(figi, depth=0, max_age=10*60):
         logger.warn("Превышена частота запросов API. Пауза выполнения.")
         time.sleep(0.5)
         return get_current_market_price(figi, depth, max_age)
-    database.put_market_price(figi, price)
-    return price
+    instrument = get_instrument_by_figi(figi)
+    currency = instrument.currency
+    database.put_market_price(figi, price, currency)
+    return price, currency
 
 
 def get_figi_history_price(figi, date=datetime.now()):

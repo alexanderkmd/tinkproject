@@ -18,6 +18,7 @@ def init_database():
         date TEXT,
         currency TEXT,
         rate TEXT,
+        to_currency TEXT,
         PRIMARY KEY (date, currency)
     ) WITHOUT ROWID;
     """
@@ -52,6 +53,7 @@ def init_database():
         timestamp timestamp,
         figi TEXT,
         price TEXT,
+        currency TEXT,
         PRIMARY KEY (figi)
     ) WITHOUT ROWID;
     """
@@ -86,9 +88,9 @@ def prefill_database():
                 date = datetime.strptime(row[0], '%Y-%m-%d').date()
                 usd = Decimal(row[1])
                 eur = Decimal(row[2])
-                put_exchange_rate(date, "USD", usd)
-                put_exchange_rate(date, "EUR", eur)
-                put_exchange_rate(date, "RUB", 1)
+                put_exchange_rate(date, "USD", usd, "RUB", False)
+                put_exchange_rate(date, "EUR", eur, "RUB", False)
+                put_exchange_rate(date, "RUB", 1, "RUB")
                 i += 1
                 # TODO: для ускорения попробовать отключить автокоммит
                 # if i % 20 == 0:
@@ -116,12 +118,14 @@ def get_exchange_rate(date=datetime.now(), currency="USD"):
     return Decimal(row[2])
 
 
-def put_exchange_rate(date=datetime.now(), currency="USD", rate=1.0):
+def put_exchange_rate(date=datetime.now(), currency="USD", rate=1.0,
+                      to_currency="RUB", autocommit=True):
     date_str = date.strftime("%Y-%m-%d")
-    db_logger.debug(f"Put rate {rate} for {currency} on {date_str}")
-    sql = "INSERT OR REPLACE INTO rates (date, currency, rate) VALUES (?, ?, ?);"
+    db_logger.debug(f"Put rate {rate} for {currency} -> {to_currency} on {date_str}")
+    sql = "INSERT OR REPLACE INTO rates (date, currency, rate, to_currency) VALUES (?, ?, ?, ?);"
     try:
-        cursor.execute(sql, (date_str, currency, str(rate)))
+        cursor.execute(sql, (date_str, currency, str(rate), to_currency))
+        if autocommit:
         sqlite_connection.commit()
     except sqlite3.Error as e:
         db_logger.error("Rate insertion error", e)
@@ -175,14 +179,14 @@ def get_instrument_by_figi(figi, max_age=7*24*60*60):
     return instrument
 
 
-def put_market_price(figi, price=Decimal(1.0)):
+def put_market_price(figi, price=Decimal(1.0), currency="USD"):
     date_str = datetime.now()
     db_logger.debug(f"Put market price for {figi}")
     sql = """INSERT OR REPLACE INTO marketprice (timestamp,
-        figi, price)
-        VALUES (?, ?, ?);"""
+        figi, price, currency)
+        VALUES (?, ?, ?, ?);"""
     try:
-        cursor.execute(sql, (date_str, figi, str(price)))
+        cursor.execute(sql, (date_str, figi, str(price), currency))
         sqlite_connection.commit()
     except sqlite3.Error as e:
         db_logger.error("Marketprice insertion error", e)
@@ -202,9 +206,9 @@ def get_market_price_by_figi(figi, max_age=10*60):
     except sqlite3.Error as e:
         db_logger.error("Error getting market price", e)
     if not row or row is None:
-        return None
+        return None, None
     db_logger.debug(f"Returning market price for {figi}")
-    return Decimal(row['price'])
+    return Decimal(row['price']), row['currency']
 
 
 def open_database_connection(db_file_name="assets_db.db"):
