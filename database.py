@@ -126,7 +126,7 @@ def put_exchange_rate(date=datetime.now(), currency="USD", rate=1.0,
     try:
         cursor.execute(sql, (date_str, currency, str(rate), to_currency))
         if autocommit:
-        sqlite_connection.commit()
+            sqlite_connection.commit()
     except sqlite3.Error as e:
         db_logger.error("Rate insertion error", e)
         return False
