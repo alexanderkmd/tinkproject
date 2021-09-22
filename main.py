@@ -157,7 +157,7 @@ def creating_positions_objects():
                 market_price = round((market_cost / this_pos.balance), 2)
             else:
                 # current market prise for 1 item
-                market_price, price_currency = data_parser.get_current_market_price(this_pos.figi)
+                market_price, _ = data_parser.get_current_market_price(this_pos.figi)
                 # market cost (total for each position)
                 market_cost = market_price * this_pos.balance
 
