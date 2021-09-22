@@ -77,8 +77,6 @@ def prefill_database():
     if count == 0:
         db_logger.info('Preheating CB rates from saved Database')
         db_logger.info('Please wait')
-        # length = beauty.file_len('rates_by_date.csv')
-        i = 0
         with open('rates_by_date.csv', 'r') as file:
             reader = csv.reader(file)
             # creating a dictionary from csv:
@@ -91,12 +89,6 @@ def prefill_database():
                 put_exchange_rate(date, "USD", usd, "RUB", False)
                 put_exchange_rate(date, "EUR", eur, "RUB", False)
                 put_exchange_rate(date, "RUB", 1, "RUB")
-                i += 1
-                # TODO: для ускорения попробовать отключить автокоммит
-                # if i % 20 == 0:
-                #    beauty.printProgressBar(i, length, "Loading")
-            # beauty.printProgressBar(i, length, "Loading")
-        # db_logger.info(f'done in {time.time() - start_time:.2f} seconds')
 
 
 def close_database_connection():
@@ -114,8 +106,8 @@ def get_exchange_rate(date=datetime.now(), currency="USD"):
     except sqlite3.Error as e:
         db_logger.error("Error getting rate", e)
     if not row:
-        return None
-    return Decimal(row[2])
+        return None, None
+    return Decimal(row[2]), row[3]  # rate, to_currency
 
 
 def put_exchange_rate(date=datetime.now(), currency="USD", rate=1.0,

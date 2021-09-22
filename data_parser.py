@@ -40,14 +40,19 @@ def get_exchange_rate_db(date=datetime.now(), currency="USD"):
     rates = get_exchange_rate(date)
     for curr in supported_currencies:
         curr_rate = rates[curr].value
-        database.put_exchange_rate(date, curr, curr_rate)
+        database.put_exchange_rate(date, curr, curr_rate, "RUB")
     return get_exchange_rate_db(date, currency)
 
 
 def get_exchange_rates_for_date_db(date):
+    """Выводит список курсов обмена на заданную дату
+
+    Returns:
+        Dict: {"Currency": Decimal(rate)}
+    """
     rates = {}
     for currency in used_currencies:
-        rates[currency] = get_exchange_rate_db(date, currency)
+        rates[currency] = get_exchange_rate_db(date, currency)[0]
     return rates
 
 
@@ -132,10 +137,10 @@ def get_figi_history_price(figi, date=datetime.now()):
     date = datetime(date.year, date.month, date.day)
     if date == datetime.now().date():
         return get_current_market_price(figi)
-    price = database.get_exchange_rate(date, figi)
+    price, currency = database.get_exchange_rate(date, figi)
     if price:
         # Если цена есть в локальной базе - не надо запрашивать API
-        return price
+        return price, currency
     try:
         date_to = date + timedelta(days=1)
         client = tinvest.SyncClient(account_data['my_token'])
@@ -150,9 +155,11 @@ def get_figi_history_price(figi, date=datetime.now()):
         logger.error("Что-то не то со свечами! В этот день было IPO? Или размещение средств?")
         logger.error(f"{date} - {figi} - {instrument.ticker}")
         logger.error(result)
-        return None
-    database.put_exchange_rate(date, figi, price)
-    return price
+        return None, None
+    instrument = get_instrument_by_figi(figi)
+    currency = instrument.currency
+    database.put_exchange_rate(date, figi, price, currency)
+    return price, currency
 
 
 def get_position_type(figi, max_age=7*24*60*60):

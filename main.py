@@ -71,7 +71,7 @@ def calculate_ave_buy_price_rub(this_pos):
                 # Определим - был ли в истории сплит или обратный сплит
                 op_price = Decimal(ops.payment / ops.quantity_executed)
                 quantity = ops.quantity_executed
-                price = data_parser.get_figi_history_price(ops.figi, date)
+                price, _ = data_parser.get_figi_history_price(ops.figi, date)
 
                 logger.debug(f"Цена на {date} на бирже - {price}, в операции - {op_price}")
                 logger.debug(f"{ops}")
@@ -157,7 +157,7 @@ def creating_positions_objects():
                 market_price = round((market_cost / this_pos.balance), 2)
             else:
                 # current market prise for 1 item
-                market_price = data_parser.get_current_market_price(this_pos.figi)
+                market_price, price_currency = data_parser.get_current_market_price(this_pos.figi)
                 # market cost (total for each position)
                 market_cost = market_price * this_pos.balance
 
@@ -170,7 +170,7 @@ def creating_positions_objects():
             global market_cost_rub_cb
             # total value rub CB
             if this_pos.average_position_price.currency in supported_currencies:
-                rate = data_parser.get_exchange_rate_db(today_date, this_pos.average_position_price.currency)
+                rate, _ = data_parser.get_exchange_rate_db(today_date, this_pos.average_position_price.currency)
                 market_cost_rub_cb = market_cost * rate
             else:
                 market_cost_rub_cb = 'unknown currency'
