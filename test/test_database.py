@@ -14,6 +14,8 @@ class TestDatabaseFunctionality(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         database.open_database_connection(self.db_file_name)
+        database.INIT_DONE = False
+        database.init_database()
 
     @classmethod
     def tearDownClass(self):
@@ -35,7 +37,7 @@ class TestDatabaseFunctionality(unittest.TestCase):
                                          lot=10,
                                          name="Test variant Stock",
                                          type="Stock",
-                                         currency="RUB")
+                                         currency="USD")
 
     def test_rates_table_insert(self):
         self.assertTrue(database.put_exchange_rate())
@@ -111,36 +113,46 @@ class TestDatabaseFunctionality(unittest.TestCase):
         self.assertTrue(database.put_market_price(self.test_figi), Decimal(2.5))  # overwrite
 
     def test_market_price_get_correct(self):
-        database.put_market_price(self.test_figi)
-        self.assertEqual(database.get_market_price_by_figi(self.test_figi), Decimal(1.0))
+        database.put_market_price(self.test_figi, currency=self.instrument.currency)
+        self.assertEqual(database.get_market_price_by_figi(self.test_figi),
+                         (Decimal(1.0), self.instrument.currency))
 
-        database.put_market_price(self.test_figi, Decimal(2.5))  # overwrite
-        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi), Decimal(1.0))
-        self.assertEqual(database.get_market_price_by_figi(self.test_figi), Decimal(2.5))
+        # overwrite
+        database.put_market_price(self.test_figi, Decimal(2.5), self.instrument.currency)
+        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi),
+                            (Decimal(1.0), self.instrument.currency))
+        self.assertEqual(database.get_market_price_by_figi(self.test_figi),
+                         (Decimal(2.5), self.instrument.currency))
 
-        database.put_market_price(self.test_figi2, Decimal(4.555))
-        self.assertEqual(database.get_market_price_by_figi(self.test_figi2), Decimal(4.555))
-        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi2), Decimal(2.5))
-        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi), Decimal(4.555))
+        database.put_market_price(self.test_figi2, Decimal(4.555), self.instrument2.currency)
+        self.assertEqual(database.get_market_price_by_figi(self.test_figi2),
+                         (Decimal(4.555), self.instrument2.currency))
+        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi2),
+                            (Decimal(2.5), self.instrument.currency))
+        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi),
+                            (Decimal(4.555), self.instrument.currency))
 
         non_existent_figi = "NONEXFIG"
-        self.assertIsNone(database.get_market_price_by_figi(non_existent_figi))
+        self.assertEqual(database.get_market_price_by_figi(non_existent_figi),
+                         (None, None))
 
     def test_market_price_expire(self):
-        database.put_market_price(self.test_figi, Decimal(2.5))
-        database.put_market_price(self.test_figi2, Decimal(4.555))
+        database.put_market_price(self.test_figi, Decimal(2.5), self.instrument.currency)
+        database.put_market_price(self.test_figi2, Decimal(4.555), self.instrument2.currency)
         time.sleep(1)
 
         # еще не устарело - по умолчанию - неделя
-        self.assertEqual(database.get_market_price_by_figi(self.test_figi), Decimal(2.5))
+        self.assertEqual(database.get_market_price_by_figi(self.test_figi),
+                         (Decimal(2.5), self.instrument.currency))
         # еще не устарело - отложено на 1 секунду, задаем 10
         self.assertEqual(database.get_market_price_by_figi(self.test_figi, max_age=10),
-                         Decimal(2.5))
+                         (Decimal(2.5), self.instrument.currency))
         # точно устарело - прошло более 1 секунды
-        self.assertNotEqual(database.get_instrument_by_figi(self.test_figi, max_age=1),
-                            Decimal(2.5))
+        self.assertNotEqual(database.get_market_price_by_figi(self.test_figi, max_age=1),
+                            (Decimal(2.5), self.instrument.currency))
         # устарело и вывело None
-        self.assertIsNone(database.get_instrument_by_figi(self.test_figi, max_age=1))
+        self.assertEqual(database.get_market_price_by_figi(self.test_figi, max_age=1),
+                         (None, None))
         pass
 
 
