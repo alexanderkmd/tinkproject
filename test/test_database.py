@@ -53,9 +53,12 @@ class TestDatabaseFunctionality(unittest.TestCase):
         database.put_exchange_rate(date=test_date,
                                    currency="RUB", rate="2.5")
         database.put_exchange_rate(rate=Decimal(2.256))
-        self.assertEqual(database.get_exchange_rate(), Decimal(2.256))  # USD сегодня выше вставлено
-        self.assertIsNotNone(database.get_exchange_rate(date=test_date, currency="RUB"))
-        self.assertEqual(database.get_exchange_rate(date=test_date, currency="RUB"), 2.5)
+        self.assertEqual(database.get_exchange_rate(),
+                         (Decimal(2.256), "RUB"))  # USD сегодня выше вставлено
+        self.assertNotEqual(database.get_exchange_rate(date=test_date, currency="RUB"),
+                            (None, None))
+        self.assertEqual(database.get_exchange_rate(date=test_date, currency="RUB"),
+                         (2.5, "RUB"))
 
     def test_rates_table_get_no_rate(self):
         # Курс не должен быть получен
@@ -64,9 +67,12 @@ class TestDatabaseFunctionality(unittest.TestCase):
         database.put_exchange_rate(date=test_date,
                                    currency="RUB", rate="2.5")
         database.put_exchange_rate(rate=Decimal(2.256))
-        self.assertIsNone(database.get_exchange_rate(date=test_date2, currency="TST"))
-        self.assertIsNone(database.get_exchange_rate(date=test_date, currency="TST"))
-        self.assertIsNone(database.get_exchange_rate(currency="TST"))
+        self.assertEqual(database.get_exchange_rate(date=test_date2, currency="TST"),
+                         (None, None))
+        self.assertEqual(database.get_exchange_rate(date=test_date, currency="TST"),
+                         (None, None))
+        self.assertEqual(database.get_exchange_rate(currency="TST"),
+                         (None, None))
 
     def test_instrument_put(self):
         with self.assertRaises(TypeError):
