@@ -1,5 +1,6 @@
 # get all necessary data from Tinkoff API
 import decimal
+import enum
 import logging
 
 import time
@@ -24,6 +25,27 @@ ruble = ExchangeRate(code='RUB', value=Decimal(1), rate=Decimal(1), name='Руб
                      id='KOSTYL', num='KOSTYL', par=Decimal(1))
 delay_time = 0.1
 
+stats = {}
+
+
+class StatType(enum.Enum):
+    CB_API_REQUEST = 1
+    TINKOFF_API_REQUEST = 2
+    TINKOFF_API_REQUEST_THROTTLE = 29
+    MOEX_API_REQUEST = 3
+
+
+def update_stats(stat_type):
+    if stat_type.name not in stats.keys():
+        stats[stat_type.name] = 0
+    stats[stat_type.name] += 1
+
+
+def print_stats():
+    print("Статистика выполненных запросов к внешим API:")
+    for item, value in stats.items():
+        print(f"{item}: \t {value}")
+
 
 def get_exchange_rate_db(date=datetime.now(), currency="USD"):
     rate = database.get_exchange_rate(date, currency)
@@ -46,6 +68,7 @@ def get_exchange_rates_for_date_db(date):
 
 
 def get_exchange_rate(date):
+    update_stats(StatType.CB_API_REQUEST)
     rate = ExchangeRates(date)
     rate.rates.append(ruble)
     return rate
@@ -79,6 +102,7 @@ def get_accounts():
     logger.info('getting accounts')
     client = tinvest.SyncClient(account_data['my_token'])
     accounts = client.get_accounts()
+    update_stats(StatType.TINKOFF_API_REQUEST)
     logging.debug(accounts)
     logger.info('accounts received')
     return accounts
@@ -89,9 +113,11 @@ def get_api_data(broker_account_id):
     client = tinvest.SyncClient(account_data['my_token'])
     logger.info("authorisation success")
     positions = client.get_portfolio(broker_account_id=broker_account_id)
+    update_stats(StatType.TINKOFF_API_REQUEST)
     operations = client.get_operations(from_=account_data['start_date'],
                                        to=account_data['now_date'],
                                        broker_account_id=broker_account_id)
+    update_stats(StatType.TINKOFF_API_REQUEST)
     market_rate_today = {}
     for currency, data in currencies_data.items():
         if 'figi' in data.keys():
@@ -99,6 +125,7 @@ def get_api_data(broker_account_id):
         else:
             market_rate_today[currency] = 1
     currencies = client.get_portfolio_currencies(broker_account_id=broker_account_id)
+    update_stats(StatType.TINKOFF_API_REQUEST)
     logger.info("portfolio received")
 
     return positions, operations, market_rate_today, currencies
@@ -111,9 +138,11 @@ def get_current_market_price(figi, depth=0, max_age=10*60):
     try:
         client = tinvest.SyncClient(account_data['my_token'])
         book = client.get_market_orderbook(figi=figi, depth=depth)
+        update_stats(StatType.TINKOFF_API_REQUEST)
         price = book.payload.last_price
     except tinvest.exceptions.TooManyRequestsError:
         logger.warn("Превышена частота запросов API. Пауза выполнения.")
+        update_stats(StatType.TINKOFF_API_REQUEST_THROTTLE)
         time.sleep(0.5)
         return get_current_market_price(figi, depth, max_age)
     database.put_market_price(figi, price)
@@ -133,10 +162,12 @@ def get_figi_history_price(figi, date=datetime.now()):
     try:
         date_to = date + timedelta(days=1)
         client = tinvest.SyncClient(account_data['my_token'])
+        update_stats(StatType.TINKOFF_API_REQUEST)
         result = client.get_market_candles(figi, date, date_to, tinvest.CandleResolution.day)
         price = (result.payload.candles[0].h+result.payload.candles[0].l)/2
     except tinvest.exceptions.TooManyRequestsError:
         logger.warning("Превышена частота запросов API. Пауза выполнения.")
+        update_stats(StatType.TINKOFF_API_REQUEST_THROTTLE)
         time.sleep(0.5)
         return get_figi_history_price(figi, date)
     except IndexError:
@@ -165,9 +196,11 @@ def get_instrument_by_figi(figi, max_age=7*24*60*60):
     logger.debug(f"Need to query instrument for {figi} from API")
     try:
         client = tinvest.SyncClient(account_data['my_token'])
+        update_stats(StatType.TINKOFF_API_REQUEST)
         position_data = client.get_market_search_by_figi(figi)
     except tinvest.exceptions.TooManyRequestsError:
         logger.warn("Превышена частота запросов API. Пауза выполнения.")
+        update_stats(StatType.TINKOFF_API_REQUEST_THROTTLE)
         time.sleep(0.5)
         return get_instrument_by_figi(figi, max_age)
     database.put_instrument(position_data.payload)
